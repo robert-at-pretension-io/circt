@@ -12,6 +12,7 @@
 
 #include "circt/Conversion/CombToSMT.h"
 #include "circt/Conversion/HWToSMT.h"
+#include "circt/Conversion/Passes.h"
 #include "circt/Conversion/SMTToZ3LLVM.h"
 #include "circt/Conversion/VerifToSMT.h"
 #include "circt/Dialect/Comb/CombDialect.h"
@@ -208,7 +209,7 @@ static LogicalResult executeBMC(MLIRContext &context) {
     options.inlinePublic = true;
     pm.addPass(hw::createFlattenModules(options));
   }
-  pm.addNestedPass<hw::HWModuleOp>(createLowerLTLToBMC());
+  pm.addNestedPass<hw::HWModuleOp>(createLowerLTLToCorePass());
   pm.addNestedPass<hw::HWModuleOp>(verif::createCombineAssertLikePass());
   pm.addPass(createExternalizeRegisters());
   LowerToBMCOptions lowerToBMCOptions;
