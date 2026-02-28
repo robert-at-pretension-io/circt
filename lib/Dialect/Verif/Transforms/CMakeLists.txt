@@ -4,6 +4,7 @@ add_circt_dialect_library(CIRCTVerifTransforms
   LowerSymbolicValues.cpp
   LowerTests.cpp
   PrepareForFormal.cpp
+  VerifPassPipelines.cpp
   SimplifyAssumeEq.cpp
   StripContracts.cpp
   VerifyClockedAssertLike.cpp
