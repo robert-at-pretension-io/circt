@@ -39,3 +39,43 @@ Every conversion pass ends with a configuration block.
 **Idiom:** You don't tell the pass *how* to traverse the tree, you just declare the rules.
 1.  **`ConversionTarget`**: You define what is legal (e.g., `target.addLegalDialect<hw::HWDialect>()`) and what is illegal (`target.addIllegalOp<ltl::DelayOp>()`).
 2.  **`ApplyPartialConversion`**: You hand the target and your patterns to this framework function. It is called "Partial" because it's okay if some operations in the module are ignored/left alone. (Conversely, `ApplyFullConversion` will crash the compiler if *any* illegal operation survives the pass).
+## 7. The Template Pattern for Multi-Op Matching
+Often, the exact same transformation applies to multiple operations (e.g., both `verif.assert` and `verif.assume`). Instead of duplicating the struct, CIRCT uses C++ templates for the pattern:
+```cpp
+template <typename Op>
+struct RemoveEnableTrue : public OpRewritePattern<Op> {
+  // ...
+};
+
+// Registration:
+patterns.add<RemoveEnableTrue<verif::AssertOp>, RemoveEnableTrue<verif::AssumeOp>>(context);
+```
+
+## 8. Complex Sub-Matching (`matchPattern`)
+Instead of manually navigating the IR tree with long chains of `getDefiningOp<...>()` and checking if things exist, CIRCT leverages MLIR's built-in `matchPattern` utility.
+```cpp
+// Instead of:
+// auto sext = input.getDefiningOp<comb::SextOp>();
+// if (sext) { Value inner = sext.getInput(); ... }
+
+// You use:
+Value inner;
+if (matchPattern(input, comb::m_Sext(m_Any(&inner)))) {
+  // `inner` is automatically populated with the nested value.
+}
+```
+**Idiom:** Use pattern matchers to declaratively describe the shape of the IR you are looking for. It handles the null-checking for you.
+
+## 9. Canonicalizers (`getCanonicalizationPatterns`)
+If a pattern represents a universal mathematical or structural simplification (e.g., `Reverse(Reverse(A)) == A`), it doesn't belong in an ad-hoc pass. It belongs in the operation's canonicalizer.
+```cpp
+void comb::ReverseOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                  MLIRContext *context) {
+  results.add<ReverseOfReverse>(context);
+}
+```
+**Idiom:** By tying the pattern directly to the operation, the global `circt-opt -canonicalize` pass will automatically apply it anywhere the operation is found.
+
+## 10. Symbol Table Mutations (`SymOpRewritePattern`)
+When mutating operations that define symbols (like modules or custom `arc.define` functions), standard patterns can corrupt the global Symbol Table if they blindly rename or delete things.
+**Idiom:** Use `SymOpRewritePattern<T>` instead of `OpRewritePattern<T>`. It provides specialized access to a cached `SymbolTable` to ensure cross-references aren't broken during the rewrite.
